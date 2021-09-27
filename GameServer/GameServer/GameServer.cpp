@@ -14,6 +14,7 @@ using namespace std;
 LockQueue<int32_t> q;
 LockFreeStack<int32_t> s;
 
+
 void Push()
 {
 	for (;;)
@@ -21,25 +22,22 @@ void Push()
 		int32_t value = rand() % 100;
 		s.push(value);
 
-		this_thread::sleep_for(10ms);
+		this_thread::sleep_for(1ms);
 	}
 }
 
 void Pop()
 {
-	//for (;;)
-	//{
-	//	int32_t value;
-	//	if (s.try_pop(OUT value))
-		//	cout << value << endl;
-	//}
+	for (;;)
+	{
+		auto i = s.try_pop();
+	}
 }
 
 int main()
 {
 	atomic<shared_ptr<int32>> ptr;
 	cout << boolalpha << ptr.is_lock_free() << endl;
-
 	thread t1{ Push };
 	thread t2{ Pop };
 	thread t3{ Pop };

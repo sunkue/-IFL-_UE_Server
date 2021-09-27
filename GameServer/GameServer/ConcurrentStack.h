@@ -49,11 +49,20 @@ private:
 template<class T>
 class LockFreeStack
 {
+	struct Node;
+
+	struct CountedNodePtr
+	{
+		int32_t external_count = { 0 };
+		Node* ptr = { nullptr };
+	};
+
 	struct Node
 	{
 		Node(const T& value) :data{ make_shared<T>(value) } {};
 		shared_ptr<T> data;
-		shared_ptr<Node> next;
+		atomic<int32_t> internal_count = { 0 };
+		CountedNodePtr next;
 	};
 
 
@@ -61,25 +70,64 @@ public:
 
 	void push(const T& value)
 	{
-		shared_ptr<Node> node = make_shared<Node>(value);
-		while (false == _head.compare_exchange_weak(node->next, node))
+		CountedNodePtr node;
+		node.ptr = new Node{ value };
+		node.external_count = 1;
+		while (false == _head.compare_exchange_weak(node.ptr->next, node))
 			;;;
 	}
 
 	shared_ptr<T> try_pop()
 	{
-		shared_ptr<Node> old_head = _head;
-		if (nullptr == old_head)return nullptr;
+		CountedNodePtr old_head = _head;
+		for (;;)
+		{
+			increase_head_count(old_head);
+			Node* ret_ptr = old_head.ptr;
 
-		while (old_head && false == _head.compare_exchange_weak(old_head, old_head->next))
-			;;;
+			if (nullptr == ret_ptr) { return shared_ptr<T>(); }
 
-		return old_head->data;
+			if (_head.compare_exchange_strong(old_head, ret_ptr->next))
+			{
+				shared_ptr<T> ret;
+				ret.swap(ret_ptr->data);
+
+				const int32_t count_increase = { old_head.external_count - 2 };
+
+				if ((-count_increase) == ret_ptr->internal_count.fetch_add(count_increase))
+				{
+					delete ret_ptr;
+				}
+
+				return ret;
+			}
+			else if (ret_ptr->internal_count.fetch_sub(1) == 1)
+			{
+				delete ret_ptr;
+			}
+		}
 	}
 
 
 private:
 
-	atomic<shared_ptr<Node>> _head;
+	void increase_head_count(CountedNodePtr& counted_ptr)
+	{
+		for (;;)
+		{
+			CountedNodePtr new_counted_ptr = counted_ptr;
+			new_counted_ptr.external_count++;
+
+			if (_head.compare_exchange_strong(counted_ptr, new_counted_ptr))
+			{
+				counted_ptr.external_count = new_counted_ptr.external_count;
+				break;
+			}
+		}
+	}
+
+private:
+
+	atomic<CountedNodePtr> _head;
 
 };

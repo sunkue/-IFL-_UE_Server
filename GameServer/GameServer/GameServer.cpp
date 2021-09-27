@@ -27,16 +27,19 @@ void Push()
 
 void Pop()
 {
-	for (;;)
-	{
-		int32_t value;
-		if (s.try_pop(OUT value))
-			cout << value << endl;
-	}
+	//for (;;)
+	//{
+	//	int32_t value;
+	//	if (s.try_pop(OUT value))
+		//	cout << value << endl;
+	//}
 }
 
 int main()
 {
+	atomic<shared_ptr<int32>> ptr;
+	cout << boolalpha << ptr.is_lock_free() << endl;
+
 	thread t1{ Push };
 	thread t2{ Pop };
 	thread t3{ Pop };

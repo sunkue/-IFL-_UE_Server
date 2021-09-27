@@ -91,7 +91,6 @@ class LockFreeStack
 
 	void chain_pending_node_list(Node* first, Node* last)
 	{
-		last->next = _pending_list;
 		while (false == _pending_list.compare_exchange_weak(last->next, first))
 			;;;
 	}
@@ -114,7 +113,6 @@ public:
 	void push(const T& value)
 	{
 		Node* node = new Node{ value };
-		node->next = _head;
 		while (_head.compare_exchange_weak(node->next, node) == false)
 			;;;
 	}
@@ -124,7 +122,6 @@ public:
 		++_pop_count;
 
 		Node* old_head = _head;
-
 		while (old_head && false == _head.compare_exchange_weak(old_head, old_head->next))
 			;;;
 

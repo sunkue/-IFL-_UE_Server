@@ -7,49 +7,42 @@
 #include <atomic>
 #include <mutex>
 #include <future>
-
+#include "ConcurrentQueue.h"
+#include "ConcurrentStack.h"
 using namespace std;
 
+LockQueue<int32_t> q;
+LockFreeStack<int32_t> s;
 
-int32 x = 0;
-int32 y = 0;
-int32 r2 = 0;
-int32 r1 = 0;
+void Push()
+{
+	for (;;)
+	{
+		int32_t value = rand() % 100;
+		s.push(value);
 
-volatile bool ready;
-
-void f1() {
-	while (!ready)
-		;
-	y = 1;
-	r1 = x;
+		this_thread::sleep_for(10ms);
+	}
 }
 
-void f2() {
-	while (!ready)
-		;
-	x = 1;
-	r2 = y;
+void Pop()
+{
+	for (;;)
+	{
+		int32_t value;
+		if (s.try_pop(OUT value))
+			cout << value << endl;
+	}
 }
 
 int main()
 {
-	int32 count = 0;
-	for (;; count++) {
-		ready = false;
+	thread t1{ Push };
+	thread t2{ Pop };
+	thread t3{ Pop };
 
-		x = y = r1 = r2 = 0;
+	t1.join();
+	t2.join();
+	t3.join();
 
-		thread t1{ f1 };
-		thread t2{ f2 };
-		
-		ready = true;
-
-		t1.join();
-		t2.join();
-
-		if (r1 == 0 && r2 == 0)
-			break;
-	}
-	cout << count << endl;
 }

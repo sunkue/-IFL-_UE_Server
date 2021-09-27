@@ -11,96 +11,45 @@
 using namespace std;
 
 
+int32 x = 0;
+int32 y = 0;
+int32 r2 = 0;
+int32 r1 = 0;
 
-int64 f()
-{
-	int64 sum = 0;
+volatile bool ready;
 
-	for (int32 i = 0; i < 100'000; i++)
-	{
-		sum += 2;
-	}
-
-	return sum;
+void f1() {
+	while (!ready)
+		;
+	y = 1;
+	r1 = x;
 }
 
-void PromiseWorker(std::promise<string>&& promise)
-{
-	promise.set_value("Message");
-}
-
-void TaskWorker(std::packaged_task<int64()>&& task)
-{
-	task();
+void f2() {
+	while (!ready)
+		;
+	x = 1;
+	r2 = y;
 }
 
 int main()
 {
-	// 동기(synhcronous) 실행
-	// int64 sum = f();
-	// cout << sum << endl;
+	int32 count = 0;
+	for (;; count++) {
+		ready = false;
 
+		x = y = r1 = r2 = 0;
 
-	// future 
-	// async
-	{
-		// opt 1) deferred			=> lazy evaluation
-		// opt 2) async				=> thread
-		// opt 3) deferred | async	=> whatever
-		std::future<int64> future = std::async(std::launch::async, f);
+		thread t1{ f1 };
+		thread t2{ f2 };
+		
+		ready = true;
 
-		if (future.wait_for(1ns) != future_status::ready)
-			cout << "not done yet" << endl;
+		t1.join();
+		t2.join();
 
-		cout << future.get() << endl;
-
-		class C {
-		public:
-			int64 f() { return 10; }
-		} c;
-		future = std::async(std::launch::async, &C::f, c);
-
-		cout << future.get() << endl;
+		if (r1 == 0 && r2 == 0)
+			break;
 	}
-
-	// promise
-	{
-		// 계약서..
-		std::promise<string> promise;
-		std::future<string> future = promise.get_future();
-
-		thread t(PromiseWorker, std::move(promise)); //promise => empty
-
-		cout << future.get() << endl;	//future => empty
-
-		t.join();
-	}
-
-	// packaged_task
-	{
-		std::packaged_task task(f);
-		future future = task.get_future();
-
-		thread t(TaskWorker, move(task));
-
-		cout << future.get() << endl;
-
-		t.join();
-	}
-
-	// async /vs/ packaged_task
-	// private_thread for task /vs/ task for any thread
-	// 단발성 이벤트에서 유용하다
-
-	// 결론
-	// mutex, condition_variable 없이 간단한 task 처리.
-
-	// 1) async
-	// 함수를 비동기 실행
-	// 2) promise
-	// 결과를 future에 전달약속
-	// 3) packaged_task
-	// 결과를 future에 전달약속
-
-	// 비동기 => lazy 여도 되고 thread 여도 되고 아무래도 상관없으니 언젠가 실행되어서 필요할때를 대비해 주시오.
+	cout << count << endl;
 }
